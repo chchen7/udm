@@ -36,7 +36,7 @@ const (
 	resyncAMF              string = "0000"
 )
 
-func (p *Processor) aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
+func (p *Processor) aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 	// Use ValidateAUTS to verify AUTS and extract SQNms
 	// This function internally:
 	// 1. Uses AK* (f5*) to de-conceal SQNms from AUTS
@@ -44,7 +44,7 @@ func (p *Processor) aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
 	SQNms, err := milenage.ValidateAUTS(opc, k, rand, auts)
 	if err != nil {
 		logger.UeauLog.Errorln("aucSQN ValidateAUTS err:", err)
-		return nil, nil
+		return nil, nil, err
 	}
 
 	logger.UeauLog.Tracef("aucSQN: SQNms=[%x]\n", SQNms)
@@ -53,7 +53,7 @@ func (p *Processor) aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
 	macS := auts[6:14]
 	logger.UeauLog.Tracef("aucSQN: macS=[%x]\n", macS)
 
-	return SQNms, macS
+	return SQNms, macS, err
 }
 
 func (p *Processor) strictHex(ss string, n int) string {
@@ -319,7 +319,19 @@ func (p *Processor) GenerateAuthDataProcedure(
 			return
 		}
 
-		SQNms, macS := p.aucSQN(opc, k, Auts, randHex)
+		SQNms, macS , err:= p.aucSQN(opc, k, Auts, randHex)
+		if err != nil {
+			logger.UeauLog.Errorln("aucSQN error:", err)
+			problemDetails := &models.ProblemDetails{
+				Status: http.StatusForbidden,
+				Cause:  authenticationRejected,
+				Detail: err.Error(),
+			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+			c.JSON(int(problemDetails.Status), problemDetails)
+			return
+		}
+
 		if reflect.DeepEqual(macS, Auts[6:]) {
 			_, err = cryptoRand.Read(RAND)
 			if err != nil {
