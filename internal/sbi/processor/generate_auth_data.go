@@ -319,7 +319,7 @@ func (p *Processor) GenerateAuthDataProcedure(
 			return
 		}
 
-		SQNms, macS , err:= p.aucSQN(opc, k, Auts, randHex)
+		SQNms, macS, err := p.aucSQN(opc, k, Auts, randHex)
 		if err != nil {
 			logger.UeauLog.Errorln("aucSQN error:", err)
 			problemDetails := &models.ProblemDetails{
